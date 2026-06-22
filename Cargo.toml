@@ -1,0 +1,41 @@
+[package]
+name = "evice-multi-sequencer"
+version = "0.1.0"
+edition = "2021"
+description = "Lightweight multi-sequencer consensus and P2P networking library"
+
+[dependencies]
+# Runtime
+tokio = { workspace = true }
+rand = { workspace = true }
+
+# Consensus & P2P
+libp2p = { workspace = true }
+libp2p-request-response = { workspace = true }
+async-recursion = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_bytes = { workspace = true }
+serde_json = { workspace = true }
+serde_with = { workspace = true }
+borsh = { workspace = true }
+bincode = { workspace = true }
+hex = { workspace = true }
+
+# Cryptography
+pqcrypto-dilithium = { workspace = true }
+pqcrypto-traits = { workspace = true }
+schnorrkel = { workspace = true }
+sha2 = { workspace = true }
+sha3 = { workspace = true }
+chacha20poly1305 = { workspace = true }
+cipher = { workspace = true }
+scrypt = { workspace = true }
+zeroize = { workspace = true }
+
+# Utilities
+log = { workspace = true }
+lru = { workspace = true }
+thiserror = { workspace = true }
+uuid = { workspace = true }
