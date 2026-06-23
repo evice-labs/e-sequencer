@@ -369,6 +369,12 @@ impl ConsensusEngine {
             return;
         }
 
+        let expected_root = PayloadBatch::calculate_payloads_root(&batch.payloads);
+        if batch.header.payloads_root != expected_root {
+            warn!("[CONSENSUS] Rejecting batch: payloads_root mismatch.");
+            return;
+        }
+
         let pending = PendingBatch {
             header: batch.header.clone(),
             payloads: batch.payloads.clone(),
