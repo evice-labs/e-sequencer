@@ -3,7 +3,7 @@ use chacha20poly1305::{
     XChaCha20Poly1305, XNonce,
 };
 use cipher::InvalidLength;
-use rand::RngCore;
+use rand::Rng;
 use scrypt::{
     errors::{InvalidOutputLen, InvalidParams},
     scrypt, Params as ScryptParams,
@@ -109,7 +109,7 @@ impl Keystore {
         };
 
         let mut derived_key = [0u8; 32];
-        let scrypt_params = ScryptParams::new(18, 8, 1, 32)?;
+        let scrypt_params = ScryptParams::new(18, 8, 1)?;
         scrypt(password.as_bytes(), &salt, &scrypt_params, &mut derived_key)?;
 
         let cipher = XChaCha20Poly1305::new(&derived_key.into());
@@ -161,7 +161,6 @@ impl Keystore {
             self.crypto.kdfparams.n.ilog2() as u8,
             self.crypto.kdfparams.r,
             self.crypto.kdfparams.p,
-            32,
         )?;
         scrypt(password.as_bytes(), &salt, &scrypt_params, &mut derived_key)?;
 
