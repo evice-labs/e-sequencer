@@ -43,11 +43,24 @@ pub struct ConsensusEngine {
     pub mempool: Arc<RwLock<Vec<AppPayload>>>,
     pub chain_id: String,
     pub genesis_params: crate::genesis::GenesisParameters,
+    pub confirmed_batch_tx: mpsc::Sender<PayloadBatch>,
+    pub shutdown: Arc<AtomicBool>,
 }
 
 /// Starts the consensus loop. This loop listens for signals, orchestrates sub-committee elections,
 /// triggers block proposals when chosen as a leader, and processes incoming consensus messages.
 impl ConsensusEngine {
+    /// This is the primary public API for host applications to inject data into the sequencer.
+    pub async fn submit_payload(&self, payload: AppPayload) {
+        let _ = self.tx_gossip.send(ChainMessage::NewPayload(payload.clone())).await;
+        self.mempool.write().await.push(payload);
+    }
+
+    pub fn request_shutdown(&self) {
+        info!("[CONSENSUS] Shutdown requested.");
+        self.shutdown.store(true, Ordering::SeqCst);
+    }
+
     pub async fn run(
         self,
         mut p2p_msg_rx: mpsc::Receiver<ConsensusMsgTuple>,
@@ -55,6 +68,10 @@ impl ConsensusEngine {
     ) {
         info!("[CONSENSUS] Consensus engine started, waiting for ConsensusReady signal...");
         loop {
+            if self.shutdown.load(Ordering::SeqCst) {
+                info!("[CONSENSUS] Shutdown signal received during startup. Exiting.");
+                return;
+            }
             if self.consensus_ready.load(Ordering::SeqCst) {
                 info!("[CONSENSUS] ConsensusReady signal received. Starting consensus protocol.");
                 break;
@@ -78,6 +95,10 @@ impl ConsensusEngine {
         let mut current_step_task: Option<tokio::task::JoinHandle<()>> = None;
 
         loop {
+            if self.shutdown.load(Ordering::SeqCst) {
+                info!("[CONSENSUS] Shutdown signal received. Stopping consensus engine.");
+                break;
+            }
             tokio::select! {
                 _ = pacesetter_ticker.tick() => {},
             }
@@ -545,6 +566,9 @@ impl ConsensusEngine {
                         round: batch.round,
                     };
 
+                    // Clone before moving into internal storage — this copy goes to the host app
+                    let confirmed_batch_out = payload_batch.clone();
+
                     core.processed_optimistic_batches
                         .insert(batch_hash.to_vec());
                     core.optimistically_confirmed_batches.push(payload_batch);
@@ -565,6 +589,12 @@ impl ConsensusEngine {
 
                     core.prune_stale_data();
                     drop(core);
+
+                    // Emit confirmed batch to host application via output channel
+                    if self.confirmed_batch_tx.send(confirmed_batch_out).await.is_err() {
+                        warn!("[CONSENSUS] Confirmed batch receiver dropped. No host app listening.");
+                    }
+
                     self.state.prune_confirmed_proposals().await;
                 } else {
                     warn!(
