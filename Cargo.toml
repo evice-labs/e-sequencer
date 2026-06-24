@@ -1,5 +1,5 @@
 [package]
-name = "evice-multi-sequencer"
+name = "evice-sequencer"
 version = "0.1.0"
 edition = "2021"
 description = "Lightweight multi-sequencer consensus and P2P networking library"
