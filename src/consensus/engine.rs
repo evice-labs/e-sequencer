@@ -375,6 +375,69 @@ impl ConsensusEngine {
             return;
         }
 
+        let current_round = self.state.core_state.read().await.current_round;
+        if batch.round > current_round + 10 {
+            warn!("[CONSENSUS] Rejecting batch: round {} too far in the future (current: {}).", batch.round, current_round);
+            return;
+        }
+        if current_round > 5 && batch.round < current_round.saturating_sub(5) {
+            warn!("[CONSENSUS] Rejecting batch: round {} too far in the past (current: {}).", batch.round, current_round);
+            return;
+        }
+
+        let now_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as u64;
+
+        let max_drift_ms = 30_000; 
+        if batch.header.timestamp > now_ms + max_drift_ms {
+            warn!("[CONSENSUS] Rejecting batch: timestamp too far in the future.");
+            return;
+        }
+        if batch.header.timestamp < now_ms.saturating_sub(max_drift_ms) {
+            warn!("[CONSENSUS] Rejecting batch: timestamp too far in the past.");
+            return;
+        }
+
+        {
+            let core = self.state.core_state.read().await;
+            let expected_index = if let Some(latest) = core.optimistically_confirmed_batches.last() {
+                latest.header.index + 1
+            } else {
+                1
+            };
+            if batch.header.index != expected_index {
+                // Allow slightly ahead batches (may arrive before their predecessor is confirmed)
+                if batch.header.index > expected_index + 5 || batch.header.index < expected_index {
+                    warn!(
+                        "[CONSENSUS] Rejecting batch: index {} is not sequential (expected: {}).",
+                        batch.header.index, expected_index
+                    );
+                    return;
+                }
+            }
+        }
+
+        // Derive seed_hash from the justify QC (parent batch), mirroring handle_round_step logic.
+        let seed_hash = {
+            let core = self.state.core_state.read().await;
+            core.optimistically_confirmed_batches
+                .iter()
+                .rev()
+                .find(|b| b.header.calculate_hash() == batch.justify.batch_hash)
+                .map(|b| b.header.vrf_output.clone())
+                .unwrap_or_else(|| batch.justify.batch_hash.clone())
+        };
+
+        let sub_committee = self.determine_sub_committee(batch.round, &seed_hash).await;
+        if !sub_committee.contains(&batch.header.authority) {
+            warn!("[CONSENSUS] Rejecting batch: proposer 0x{} not in sub-committee for round {}.",
+                hex::encode(proposer_address.as_ref()), batch.round);
+            return;
+        }
+
+        // All validations passed, accept proposal
         let pending = PendingBatch {
             header: batch.header.clone(),
             payloads: batch.payloads.clone(),
@@ -391,7 +454,7 @@ impl ConsensusEngine {
         }
 
         info!(
-            "[CONSENSUS] Proposal #{} (0x{}) is valid. Casting vote.",
+            "[CONSENSUS] Proposal #{} (0x{}) is valid, casting vote.",
             batch.header.index,
             hex::encode(&batch_hash[..4])
         );
