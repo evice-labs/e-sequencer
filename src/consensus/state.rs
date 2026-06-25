@@ -39,15 +39,12 @@ pub struct CoreConsensusState {
 }
 
 impl CoreConsensusState {
-    /// Prune stale data to prevent unbounded memory growth.
     /// Removes votes for already-processed batches and trims
     /// the confirmed batch history to `MAX_CONFIRMED_BATCHES`.
     pub fn prune_stale_data(&mut self) {
-        // MEM-2: Remove votes for batches that have already reached quorum
         self.velocity_votes
             .retain(|hash, _| !self.processed_optimistic_batches.contains(hash));
 
-        // MEM-1: Keep only the most recent confirmed batches
         if self.optimistically_confirmed_batches.len() > MAX_CONFIRMED_BATCHES {
             let drain_count = self.optimistically_confirmed_batches.len() - MAX_CONFIRMED_BATCHES;
             self.optimistically_confirmed_batches.drain(..drain_count);

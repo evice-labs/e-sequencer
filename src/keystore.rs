@@ -2,10 +2,8 @@ use chacha20poly1305::{
     aead::{Aead, KeyInit},
     XChaCha20Poly1305, XNonce,
 };
-use cipher::InvalidLength;
 use rand::Rng;
 use scrypt::{
-    errors::{InvalidOutputLen, InvalidParams},
     scrypt, Params as ScryptParams,
 };
 use serde::{Deserialize, Serialize};
@@ -16,11 +14,11 @@ use std::{
     os::unix::fs::OpenOptionsExt,
     path::Path,
 };
-use thiserror::Error;
 use uuid::Uuid;
 use zeroize::Zeroize;
 
 use crate::crypto::{public_key_to_address, PRIVATE_KEY_SIZE, PUBLIC_KEY_SIZE};
+use crate::error::KeystoreError;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Keystore {
@@ -53,38 +51,6 @@ struct KdfParams {
     p: u32,
     r: u32,
     salt: String,
-}
-
-#[derive(Error, Debug)]
-pub enum KeystoreError {
-    #[error("I/O error: {0}")]
-    Io(#[from] std::io::Error),
-    #[error("Serialization error: {0}")]
-    Serde(#[from] serde_json::Error),
-    #[error("Hex decoding error: {0}")]
-    Hex(#[from] hex::FromHexError),
-    #[error("Scrypt params error: {0}")]
-    ScryptParams(#[from] InvalidParams),
-    #[error("Scrypt output length error: {0}")]
-    ScryptOutputLen(#[from] InvalidOutputLen),
-    #[error("Cipher error: {0}")]
-    Cipher(#[from] InvalidLength),
-    #[error("Padding error during decryption")]
-    PaddingError,
-    #[error("Invalid password or corrupted keystore")]
-    InvalidPassword,
-    #[error("Decrypted key has invalid length")]
-    InvalidKeyLength,
-    #[error("Unsupported keystore version: {0}")]
-    UnsupportedVersion(u8),
-    #[error("AEAD encryption/decryption error")]
-    AeadError,
-}
-
-impl From<chacha20poly1305::Error> for KeystoreError {
-    fn from(_: chacha20poly1305::Error) -> Self {
-        KeystoreError::AeadError
-    }
 }
 
 impl Keystore {

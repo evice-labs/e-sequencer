@@ -27,7 +27,6 @@ use super::{
     types::{ConsensusMessage, PendingBatch, QuorumCertificate, VelocityVote},
 };
 
-
 /// The `ConsensusEngine` handles the PBFT-style sequencer consensus mechanism.
 /// It works alongside the networking layer to order batches of intents and produce Quorum Certificates (QC).
 #[derive(Clone)]
@@ -47,10 +46,8 @@ pub struct ConsensusEngine {
     pub shutdown: Arc<AtomicBool>,
 }
 
-/// Starts the consensus loop. This loop listens for signals, orchestrates sub-committee elections,
-/// triggers block proposals when chosen as a leader, and processes incoming consensus messages.
 impl ConsensusEngine {
-    /// This is the primary public API for host applications to inject data into the sequencer.
+    // This is the primary public API for host applications to inject data into the sequencer.
     pub async fn submit_payload(&self, payload: AppPayload) {
         let _ = self.tx_gossip.send(ChainMessage::NewPayload(payload.clone())).await;
         self.mempool.write().await.push(payload);
@@ -61,6 +58,8 @@ impl ConsensusEngine {
         self.shutdown.store(true, Ordering::SeqCst);
     }
 
+    // Starts the consensus loop. This loop listens for signals, orchestrates sub-committee elections,
+    // triggers block proposals when chosen as a leader, and processes incoming consensus messages.
     pub async fn run(
         self,
         mut p2p_msg_rx: mpsc::Receiver<ConsensusMsgTuple>,

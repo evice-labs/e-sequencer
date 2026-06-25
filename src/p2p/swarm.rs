@@ -122,10 +122,7 @@ pub async fn run(
         .build();
 
     swarm.behaviour_mut().gossipsub.subscribe(&gossip_topic)?;
-    swarm
-        .behaviour_mut()
-        .gossipsub
-        .subscribe(&fallback_sync_topic)?;
+    swarm.behaviour_mut().gossipsub.subscribe(&fallback_sync_topic)?;
 
     for remote_addr_str in &bootstrap_nodes {
         if let Ok(remote_addr) = Multiaddr::from_str(remote_addr_str) {
@@ -244,7 +241,10 @@ pub async fn run(
 
             event = swarm.select_next_some() => {
                 match event {
-                    SwarmEvent::Behaviour(AppBehaviourEvent::Kademlia(kad::Event::OutboundQueryProgressed { result, .. })) => {
+                    SwarmEvent::Behaviour(AppBehaviourEvent::Kademlia(kad::Event::OutboundQueryProgressed { 
+                        result, 
+                        .. 
+                    })) => {
                         if let kad::QueryResult::GetClosestPeers(Ok(ok)) = result {
                             for peer_info in ok.peers {
                                 let discovered_peer_id = peer_info.peer_id;
@@ -566,7 +566,6 @@ pub async fn run(
                                     }
                                 });
                             },
-
                             request_response::Message::Response { response, .. } => {
                                 match response {
                                     SyncResponse::PeersReceivedAck => {
